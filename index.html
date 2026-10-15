@@ -37,7 +37,11 @@
 
   // Safari wipes the storage of framed (third-party) pages when the app is closed, so the app keeps a copy of its
   // login here, in this page's own permanent storage. Only the Google Apps Script frame may read or write it.
-  var KEYS = ['pk.token', 'pk.known', 'pk.noAuto', 'pk.theme', 'pk.lastVehicle'];
+  var KEYS = ['pk.token', 'pk.known', 'pk.noAuto', 'pk.theme', 'pk.lastVehicle', 'pk.skipInstall'];
+  function isStandalone() {
+    try { return !!(navigator.standalone || matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches); }
+    catch (e) { return false; }
+  }
   function fromApp(origin) {
     try { return /\.googleusercontent\.com$/.test(new URL(origin).hostname); } catch (e) { return false; }
   }
@@ -48,7 +52,7 @@
       if (d.pk === 'get') {
         var store = {};
         KEYS.forEach(function (k) { var v = localStorage.getItem(k); if (v) store[k] = v; });
-        e.source.postMessage({ pk: 'store', store: store }, e.origin);
+        e.source.postMessage({ pk: 'store', store: store, standalone: isStandalone() }, e.origin);
       } else if (d.pk === 'set' && KEYS.indexOf(d.key) >= 0) {
         if (d.value) localStorage.setItem(d.key, String(d.value)); else localStorage.removeItem(d.key);
       }
