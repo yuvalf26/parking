@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>חניה · דיזינגוף 25</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#4F46E5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="חניה · דיזינגוף">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="description" content="אפליקציית החניה של דיירי דיזינגוף 25">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<style>
+  html, body { margin: 0; height: 100%; background: #F3F5FA; overflow: hidden; }
+  iframe { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+  #splash { position: fixed; inset: 0; display: grid; place-items: center; background: #F3F5FA; transition: opacity .35s; font-family: system-ui, -apple-system, 'Segoe UI', Arial, sans-serif; color: #667085; }
+  #splash.hide { opacity: 0; pointer-events: none; }
+  #splash img { width: 72px; height: 72px; border-radius: 20px; display: block; margin: 0 auto 14px; animation: float 1.6s ease-in-out infinite; box-shadow: 0 10px 24px -10px rgba(79,70,229,.7); }
+  #splash a { color: #4F46E5; font-weight: 700; }
+  @keyframes float { 50% { transform: translateY(-6px); } }
+  @media (prefers-color-scheme: dark) { html, body, #splash { background: #090E1A; color: #98A2B8; } }
+</style>
+</head>
+<body>
+<div id="splash"><div style="text-align:center">
+  <img src="apple-touch-icon.png" alt="">
+  <div>טוען את החניה…</div>
+  <div id="slow" hidden style="margin-top:12px;font-size:13px">לוקח זמן? <a id="direct" href="#" target="_top">פתיחה ישירה</a></div>
+</div></div>
+<script>
+  // The Google Apps Script web app this page opens. If you ever create a NEW deployment, paste its /exec link here.
+  var APP_URL = 'https://script.google.com/macros/s/AKfycbzYUZi--iNY0bhwHk2BDDZe6-qnEpWhNA_nQ-r_FqCak-b3_SvxvN_aBS5pDRRfzZ6N/exec';
+
+  var f = document.createElement('iframe');
+  f.src = APP_URL;
+  f.title = 'חניה';
+  f.allow = 'clipboard-write; web-share; vibrate';
+  f.referrerPolicy = 'no-referrer-when-downgrade';
+  f.onload = function () { setTimeout(function () { document.getElementById('splash').className = 'hide'; }, 250); };
+  document.body.appendChild(f);
+  document.getElementById('direct').href = APP_URL;
+  setTimeout(function () { document.getElementById('slow').hidden = false; }, 8000);
+</script>
+</body>
+</html>
