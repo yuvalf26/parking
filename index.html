@@ -35,6 +35,27 @@
   // The Google Apps Script web app this page opens. If you ever create a NEW deployment, paste its /exec link here.
   var APP_URL = 'https://script.google.com/macros/s/AKfycbzYUZi--iNY0bhwHk2BDDZe6-qnEpWhNA_nQ-r_FqCak-b3_SvxvN_aBS5pDRRfzZ6N/exec';
 
+  // Safari wipes the storage of framed (third-party) pages when the app is closed, so the app keeps a copy of its
+  // login here, in this page's own permanent storage. Only the Google Apps Script frame may read or write it.
+  var KEYS = ['pk.token', 'pk.known', 'pk.noAuto', 'pk.theme', 'pk.lastVehicle'];
+  function fromApp(origin) {
+    try { return /\.googleusercontent\.com$/.test(new URL(origin).hostname); } catch (e) { return false; }
+  }
+  window.addEventListener('message', function (e) {
+    var d = e.data;
+    if (!d || typeof d !== 'object' || !fromApp(e.origin)) return;
+    try {
+      if (d.pk === 'get') {
+        var store = {};
+        KEYS.forEach(function (k) { var v = localStorage.getItem(k); if (v) store[k] = v; });
+        e.source.postMessage({ pk: 'store', store: store }, e.origin);
+      } else if (d.pk === 'set' && KEYS.indexOf(d.key) >= 0) {
+        if (d.value) localStorage.setItem(d.key, String(d.value)); else localStorage.removeItem(d.key);
+      }
+    } catch (err) {}
+  });
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+
   var f = document.createElement('iframe');
   f.src = APP_URL;
   f.title = 'חניה';
