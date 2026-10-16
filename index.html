@@ -66,7 +66,7 @@
     try { return /\.googleusercontent\.com$/.test(new URL(origin).hostname); } catch (e) { return false; }
   }
   // ---- Push notifications (OneSignal). Paste the OneSignal App ID here (it is public, not a secret). ----
-  var ONESIGNAL_APP_ID = '';
+  var ONESIGNAL_APP_ID = '5d5db2d9-b0ea-4a14-af53-a1d202c52109';
   var OS = null, osReady = null;
   function pushSupported() { return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
   function loadOneSignal() {
