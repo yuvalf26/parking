@@ -23,9 +23,29 @@
   #splash a { color: #4F46E5; font-weight: 700; }
   @keyframes float { 50% { transform: translateY(-6px); } }
   @media (prefers-color-scheme: dark) { html, body, #splash { background: #090E1A; color: #98A2B8; } }
+  /* Push permission sheet — must live in this top-level page: phones only allow the prompt from here. */
+  #pushcta { position: fixed; inset: 0; z-index: 10; display: none; font-family: system-ui, -apple-system, 'Segoe UI', Arial, sans-serif; }
+  #pushcta.on { display: block; }
+  #pushcta .bd { position: absolute; inset: 0; background: rgba(2,6,23,.5); }
+  #pushcta .pn { position: absolute; left: 0; right: 0; bottom: 0; max-width: 560px; margin: 0 auto; background: #fff; color: #0B1220; border-radius: 24px 24px 0 0;
+    padding: 22px 20px calc(20px + env(safe-area-inset-bottom)); text-align: center; animation: up .3s cubic-bezier(.2,.8,.2,1); box-shadow: 0 -10px 40px rgba(0,0,0,.25); }
+  #pushcta .em { font-size: 44px; line-height: 1; margin-bottom: 8px; }
+  #pushcta h3 { margin: 0 0 6px; font-size: 20px; font-weight: 800; }
+  #pushcta p { margin: 0 0 16px; color: #667085; font-size: 15px; line-height: 1.6; }
+  #pushcta button { width: 100%; height: 52px; border-radius: 16px; border: 0; font: 700 16px system-ui, -apple-system, sans-serif; cursor: pointer; }
+  #pushcta .yes { background: linear-gradient(180deg, #6366F1, #4F46E5); color: #fff; box-shadow: 0 10px 22px -10px #4F46E5; }
+  #pushcta .no { background: none; color: #98A2B3; margin-top: 6px; height: 42px; font-size: 14px; }
+  @keyframes up { from { transform: translateY(100%); } to { transform: none; } }
+  @media (prefers-color-scheme: dark) { #pushcta .pn { background: #111827; color: #E8ECF5; } #pushcta p { color: #98A2B8; } }
 </style>
 </head>
 <body>
+<div id="pushcta" role="dialog" aria-modal="true"><div class="bd"></div><div class="pn">
+  <div class="em">🔔</div><h3 id="pushcta-t">להפעיל התראות?</h3>
+  <p id="pushcta-p">נודיע לך מיד כשחוסמים אותך, כשמבקשים ממך להזיז את הרכב, או כשיש התנגשות זמנים — גם כשהאפליקציה סגורה.</p>
+  <button class="yes" id="pushcta-yes">🔔 כן, להפעיל התראות</button>
+  <button class="no" id="pushcta-no">לא עכשיו</button>
+</div></div>
 <div id="splash"><div style="text-align:center">
   <img src="apple-touch-icon.png" alt="">
   <div>טוען את החניה…</div>
@@ -37,7 +57,7 @@
 
   // Safari wipes the storage of framed (third-party) pages when the app is closed, so the app keeps a copy of its
   // login here, in this page's own permanent storage. Only the Google Apps Script frame may read or write it.
-  var KEYS = ['pk.token', 'pk.known', 'pk.noAuto', 'pk.theme', 'pk.lastVehicle', 'pk.skipInstall'];
+  var KEYS = ['pk.token', 'pk.known', 'pk.noAuto', 'pk.theme', 'pk.lastVehicle', 'pk.skipInstall', 'pk.pushAsked'];
   function isStandalone() {
     try { return !!(navigator.standalone || matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches); }
     catch (e) { return false; }
@@ -45,11 +65,80 @@
   function fromApp(origin) {
     try { return /\.googleusercontent\.com$/.test(new URL(origin).hostname); } catch (e) { return false; }
   }
+  // ---- Push notifications (OneSignal). Paste the OneSignal App ID here (it is public, not a secret). ----
+  var ONESIGNAL_APP_ID = '';
+  var OS = null, osReady = null;
+  function pushSupported() { return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+  function loadOneSignal() {
+    if (osReady) return osReady;
+    osReady = new Promise(function (resolve) {
+      if (!ONESIGNAL_APP_ID || !pushSupported()) return resolve(null);
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      window.OneSignalDeferred.push(function (OneSignal) {
+        OneSignal.init({
+          appId: ONESIGNAL_APP_ID,
+          serviceWorkerPath: 'parking/OneSignalSDKWorker.js',
+          serviceWorkerParam: { scope: '/parking/' },
+          notifyButton: { enable: false },
+          autoResubscribe: true,
+        }).then(function () { OS = OneSignal; resolve(OneSignal); }, function (err) { console.warn('OneSignal', err); resolve(null); });
+      });
+      var s = document.createElement('script');
+      s.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
+      s.defer = true;
+      s.onerror = function () { resolve(null); };
+      document.head.appendChild(s);
+    });
+    return osReady;
+  }
+  function pushStatus() {
+    var st = {
+      configured: !!ONESIGNAL_APP_ID, supported: !!ONESIGNAL_APP_ID && pushSupported(), standalone: isStandalone(),
+      permission: ('Notification' in window) ? Notification.permission : 'unsupported', optedIn: false,
+    };
+    try { if (OS) st.optedIn = !!OS.User.PushSubscription.optedIn; } catch (e) {}
+    return st;
+  }
+  var ctaReply = null;
+  function showPushCta(src, origin, title, text) {
+    ctaReply = function (extra) {
+      var st = pushStatus();
+      for (var k in extra) st[k] = extra[k];
+      try { src.postMessage({ pk: 'push', status: st }, origin); } catch (e) {}
+    };
+    if (title) document.getElementById('pushcta-t').textContent = title;
+    if (text) document.getElementById('pushcta-p').textContent = text;
+    document.getElementById('pushcta').className = 'on';
+  }
+  document.getElementById('pushcta-yes').onclick = function () {
+    document.getElementById('pushcta').className = '';
+    var done = function () { if (ctaReply) ctaReply({}); };
+    // requestPermission must run directly inside this tap (iPhone requirement)
+    var ask = ('Notification' in window) ? Notification.requestPermission() : Promise.resolve('denied');
+    Promise.resolve(ask).then(function () {
+      return loadOneSignal().then(function (os) { return os && os.User.PushSubscription.optIn(); });
+    }).then(done, done);
+  };
+  document.getElementById('pushcta-no').onclick = function () {
+    document.getElementById('pushcta').className = '';
+    if (ctaReply) ctaReply({ dismissed: true });
+  };
+  if (ONESIGNAL_APP_ID && pushSupported()) loadOneSignal();
+
   window.addEventListener('message', function (e) {
     var d = e.data;
     if (!d || typeof d !== 'object' || !fromApp(e.origin)) return;
     try {
-      if (d.pk === 'get') {
+      if (d.pk === 'push-login' && d.id) {
+        loadOneSignal().then(function (os) { if (os) os.login(String(d.id)); });
+      } else if (d.pk === 'push-logout') {
+        loadOneSignal().then(function (os) { if (os) os.logout(); });
+      } else if (d.pk === 'push-status') {
+        var src = e.source, origin = e.origin;
+        loadOneSignal().then(function () { src.postMessage({ pk: 'push', status: pushStatus() }, origin); });
+      } else if (d.pk === 'push-cta') {
+        showPushCta(e.source, e.origin, d.title, d.text);
+      } else if (d.pk === 'get') {
         var store = {};
         KEYS.forEach(function (k) { var v = localStorage.getItem(k); if (v) store[k] = v; });
         e.source.postMessage({ pk: 'store', store: store, standalone: isStandalone() }, e.origin);
