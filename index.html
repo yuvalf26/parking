@@ -145,8 +145,17 @@
     if (!d || typeof d !== 'object' || !fromApp(e.origin)) return;
     try {
       if (d.pk === 'push-login' && d.id) {
-        loadOneSignal().then(function (os) { if (os) os.login(String(d.id)); });
+        // login() is skipped by the SDK when it thinks the device is already linked, so a failed first link never heals.
+        // Re-link from scratch once per device + resident.
+        var pid = String(d.id);
+        loadOneSignal().then(function (os) {
+          if (!os) return;
+          if (localStorage.getItem('pk.pushLinked') === pid) return os.login(pid);
+          return Promise.resolve(os.logout()).catch(function () {}).then(function () { return os.login(pid); })
+            .then(function () { localStorage.setItem('pk.pushLinked', pid); });
+        }).catch(function () {});
       } else if (d.pk === 'push-logout') {
+        localStorage.removeItem('pk.pushLinked');
         loadOneSignal().then(function (os) { if (os) os.logout(); });
       } else if (d.pk === 'push-status') {
         var src = e.source, origin = e.origin;
