@@ -99,6 +99,18 @@
     try { if (OS) st.optedIn = !!OS.User.PushSubscription.optedIn; } catch (e) {}
     return st;
   }
+  // The subscription is created a moment after optIn(); report only once it exists (max ~6s)
+  function waitSubscribed(os) {
+    return new Promise(function (resolve) {
+      var n = 0;
+      (function tick() {
+        var ok = false;
+        try { ok = !!(os.User.PushSubscription.optedIn && os.User.PushSubscription.id); } catch (e) {}
+        if (ok || ++n > 12 || ('Notification' in window && Notification.permission === 'denied')) return resolve();
+        setTimeout(tick, 500);
+      })();
+    });
+  }
   var ctaReply = null;
   function showPushCta(src, origin, title, text) {
     ctaReply = function (extra) {
@@ -116,7 +128,10 @@
     // requestPermission must run directly inside this tap (iPhone requirement)
     var ask = ('Notification' in window) ? Notification.requestPermission() : Promise.resolve('denied');
     Promise.resolve(ask).then(function () {
-      return loadOneSignal().then(function (os) { return os && os.User.PushSubscription.optIn(); });
+      return loadOneSignal().then(function (os) {
+        if (!os) return;
+        return Promise.resolve(os.User.PushSubscription.optIn()).then(function () { return waitSubscribed(os); });
+      });
     }).then(done, done);
   };
   document.getElementById('pushcta-no').onclick = function () {
